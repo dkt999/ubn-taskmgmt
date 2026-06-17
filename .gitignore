@@ -1,0 +1,16 @@
+# Byte-compiled / optimized / DLL files (File sinh ra khi chạy Python)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Môi trường ảo (Virtual Environments) - Cực kỳ quan trọng để không push venv lên
+venv/
+ENV/
+env/
+
+# File cấu hình lưu trạng thái cá nhân của app
+config.json
+
+# Hệ điều hành tự sinh (Rác hệ thống)
+.DS_Store
+.Thunbs.db
