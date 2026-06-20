@@ -12,21 +12,26 @@ import numpy as np
 
 class CpuGraphCanvas(tk.Frame):
     """Sử dụng Matplotlib vẽ đồ thị nét mảnh, khóa chết khung tràn viền chống co rúm tuyệt đối"""
-    def __init__(self, parent, click_callback, history_data, is_logical=False, width=200, height=120):
+    def __init__(self, parent, click_callback, history_data, is_logical=False, width=200, height=120, face_color="#e6f0fa", edge_color="#0078d4"):
         super().__init__(parent, bg="#ffffff", cursor="hand2")
         self.click_callback = click_callback
         self.is_logical = is_logical 
         self.data_history = history_data 
         self.grid_offset = 0        
-
+        self.face_color = face_color
+        self.edge_color = edge_color
         # 1. Khởi tạo Figure Matplotlib nền
         self.fig, self.ax = plt.subplots(dpi=140)
         self.fig.patch.set_facecolor('#ffffff') 
         
-        # 🛠️ KHÓA KHUNG TUYỆT ĐỐI: Ép toàn bộ các trục tọa độ bám chặt sát sạt vào 4 mép Figure
-        # Trái=0, Phải=1, Dưới=0, Trên=1 (Tắt bỏ tight_layout để chống lỗi tự co nhỏ qua mỗi giây)
-        #self.fig.subplots_adjust(left=0.0, right=1.0, bottom=0.0, top=1.0)
-        self.fig.subplots_adjust(left=0.010, right=0.990, bottom=0.01, top=1.0)
+        # 🛠️ HIỆU CHỈNH ĐỘNG CHO LỀ: 
+        # Nếu là chế độ Logical (nhiều ô nhỏ), ta nới lề phải (right=0.985) và lề dưới (bottom=0.02) rộng hơn một tí 
+        # để khi xếp lưới, các ô không bị nuốt mất viền phải và viền dưới do va chạm pixel với nhau.
+        if self.is_logical:
+            self.fig.subplots_adjust(left=0.015, right=0.985, bottom=0.02, top=0.98)
+        else:
+            # Chế độ Overall giữ nguyên tràn viền khít khịt căng đét theo thanh Progress Bar
+            self.fig.subplots_adjust(left=0.001, right=0.999, bottom=0.01, top=1.0)
         
         # 2. Nhúng vào Tkinter
         self.canvas_matplotlib = FigureCanvasTkAgg(self.fig, master=self)
@@ -41,14 +46,15 @@ class CpuGraphCanvas(tk.Frame):
     def setup_axes(self):
         self.ax.set_facecolor('#ffffff')
         self.ax.set_xlim(0, 49)
-        if self.is_logical:
-            self.ax.set_ylim(0, 100)
-        else:
-            self.ax.set_ylim(0.1, 100)
-        # Cấu hình viền bao quanh màu xanh siêu mảnh 1px bao quanh khít mép đồ thị
+        self.ax.set_ylim(0.1, 100)
+        
+        # Ép trục đồ thị xả tỷ lệ khung hình cố định để dãn phẳng theo cửa sổ
+        self.ax.set_aspect('auto')
+        
+        # Khung viền bao quanh màu xanh siêu mảnh 0.5px
         for spine_name, spine in self.ax.spines.items():
             spine.set_visible(True)
-            spine.set_color("#0078d4")  
+            spine.set_color(self.edge_color)  
             spine.set_linewidth(0.5)    
             
         self.ax.get_xaxis().set_visible(False)
@@ -59,7 +65,7 @@ class CpuGraphCanvas(tk.Frame):
         self.draw_chart()
         
     def draw_chart(self):
-        # 🛠️ Đã an toàn: Chỉ xóa dữ liệu lòng đồ thị, bộ khung lề subplots_adjust phía trên vẫn giữ nguyên
+        # Chỉ xóa dữ liệu lòng đồ thị, bộ khung lề subplots_adjust phía trên vẫn giữ nguyên
         self.ax.clear()
         
         # Thiết lập lại các thông số trục tọa độ và viền xanh bao quanh
@@ -84,13 +90,13 @@ class CpuGraphCanvas(tk.Frame):
         y = np.array(self.data_history)
         
         self.ax.fill_between(x, y, 0, 
-                             facecolor="#e6f0fa", 
-                             edgecolor="#0078d4", 
+                             facecolor=self.face_color, 
+                             edgecolor=self.edge_color, 
                              linewidth=0.5, 
                              antialiased=True,
                              zorder=2)
         
-        # Đẩy hình cập nhật lên giao diện Tkinter bằng cơ chế draw tự động thích ứng kích thước
+        # Đẩy hình cập nhật lên giao diện Tkinter
         self.canvas_matplotlib.draw_idle()
 
 
@@ -111,8 +117,9 @@ class CpuDetailView(tk.Frame):
         # 🛠️ CẢI TIẾN CHIỀU CAO: Chia Grid cho CpuDetailView để ép giãn đồ thị theo chiều dọc
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=0) # Header giữ nguyên
-        self.grid_rowconfigure(1, weight=1) # Graph container chiếm trọn không gian trống còn lại
-        self.grid_rowconfigure(2, weight=0) # Thông số dưới đáy giữ nguyên
+        self.grid_rowconfigure(1, weight=0) # Header giữ nguyên
+        self.grid_rowconfigure(2, weight=1) # Graph container chiếm trọn không gian trống còn lại
+        self.grid_rowconfigure(3, weight=0) # Thông số dưới đáy giữ nguyên
         
         self.setup_ui()
         
@@ -148,22 +155,24 @@ class CpuDetailView(tk.Frame):
         # Hàng 0: Tiêu đề CPU
         header_frame = tk.Frame(self, bg="#ffffff")
         header_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=(10, 0))
-        
         lbl_cpu_title = tk.Label(header_frame, text="CPU", font=("Calibri Light", 28), bg="#ffffff", fg="#000000")
         lbl_cpu_title.pack(side="left", anchor="s")
         
         lbl_cpu_model = tk.Label(header_frame, text=self.cpu_name, font=("Calibri Light", 11), bg="#ffffff", fg="#555555")
         lbl_cpu_model.pack(side="right", anchor="s", pady=5)
         
-        # Hàng 1: Vùng chứa biểu đồ (Dùng grid thay pack để ăn theo weight=1)
+        # Hàng 1: Dòng phụ
+        self.lbl_sub_title = tk.Label(self, text="% Utilization over 60 seconds", font=("Calibri", 8), bg="#ffffff", fg="#555555")
+        self.lbl_sub_title.grid(row=1, column=0, sticky="w", padx=20, pady=(0, 0))
+        # Hàng 2: Vùng chứa biểu đồ (Dùng grid thay pack để ăn theo weight=1)
         self.graph_container = tk.Frame(self, bg="#ffffff")
-        self.graph_container.grid(row=1, column=0, sticky="nsew", padx=20, pady=10)
+        self.graph_container.grid(row=2, column=0, sticky="nsew", padx=20, pady=10)
         
         self.render_graphs()
 
         # Hàng 2: Thông số chi tiết phía dưới đáy
         self.stats_frame = tk.Frame(self, bg="#ffffff")
-        self.stats_frame.grid(row=2, column=0, sticky="ew", padx=(24, 0), pady=(0, 15))
+        self.stats_frame.grid(row=3, column=0, sticky="ew", padx=(24, 0), pady=(0, 15))
         
         # Khóa cứng độ rộng các cột thông số
         self.stats_frame.grid_columnconfigure(0, minsize=110, weight=0)
@@ -269,16 +278,28 @@ class CpuDetailView(tk.Frame):
         self.render_graphs()
 
     def render_graphs(self):
+        # 1. Giải phóng bộ nhớ Matplotlib và hủy Widget cũ
         for g in self.graphs: 
             if hasattr(g, 'fig'): plt.close(g.fig)
             g.destroy()
         self.graphs.clear()
         
         if self.view_mode == "overall":
+            # 🛠️ BƯỚC KHÔI PHỤC QUAN TRỌNG: Xóa sạch cấu hình Grid nhiều ô của Logical cũ
+            # Ép cột 0 và hàng 0 nhận weight=1, đồng thời hủy bỏ hoàn toàn cấu hình dính hàng/cột của các ô từ 1 đến 8
+            for c in range(12):  # Quét qua tối đa số cột có thể có
+                self.graph_container.grid_columnconfigure(c, weight=1 if c == 0 else 0)
+            for r in range(12):  # Quét qua tối đa số hàng có thể có
+                self.graph_container.grid_rowconfigure(r, weight=1 if r == 0 else 0)
+            
+            # Khởi tạo đồ thị tổng thể
             g = CpuGraphCanvas(self.graph_container, click_callback=self.toggle_view_mode, history_data=self.overall_history, is_logical=False)
-            g.pack(fill="both", expand=True)
+            
+            # Sử dụng Grid tràn viền, bám chắc 4 cạnh sticky="nsew"
+            g.grid(row=0, column=0, sticky="nsew")
             self.graphs.append(g)
         else:
+            # Chế độ xem theo từng nhân (Logical Cores)
             cores = self.logical_cores
             if cores <= 2:   cols, rows = 2, 1
             elif cores <= 4: cols, rows = 2, 2
@@ -287,6 +308,7 @@ class CpuDetailView(tk.Frame):
             elif cores <= 16: cols, rows = 4, 4
             else:            cols, rows = 8, int(cores/8)
             
+            # Thiết lập Grid nhiều ô cho chế độ Logical
             for c in range(cols): self.graph_container.grid_columnconfigure(c, weight=1)
             for r in range(rows): self.graph_container.grid_rowconfigure(r, weight=1)
             
@@ -297,6 +319,7 @@ class CpuDetailView(tk.Frame):
                 g.grid(row=r, column=c, padx=3, pady=3, sticky="nsew")
                 self.graphs.append(g)
                 
+        # Ra lệnh làm mới nhịp cuộn lưới động
         for g in self.graphs:
             g.update_graph_only(self.global_grid_offset)
 
