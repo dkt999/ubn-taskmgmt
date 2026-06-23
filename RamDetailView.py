@@ -141,28 +141,21 @@ class RamDetailView(tk.Frame):
         tk.Label(self.col3_sub_frame, text="DIMM", font=("Calibri", 9), bg="#ffffff", fg="#000000").grid(row=2, column=1, sticky="w", padx=(15, 0))
 
         tk.Label(self.col3_sub_frame, text="Hardware reserved:", font=("Calibri", 9), bg="#ffffff", fg="#555555").grid(row=3, column=0, sticky="w")
-        # Giả lập mức phần cứng giữ nhẹ thường thấy trên Linux (ví dụ 128 MB hoặc N/A)
         self.lbl_hw_reserved = tk.Label(self.col3_sub_frame, text="0 MB", font=("Calibri", 9), bg="#ffffff", fg="#000000")
         self.lbl_hw_reserved.grid(row=3, column=1, sticky="w", padx=(15, 0))
-
     def receive_central_ram_data(self, ram_percent, pct_cache, in_use_gb, available_gb, cache_gb, 
                                  committed_str, paged_pool, non_paged_pool, 
                                  hardware_total_gb, ram_type, hardware_reserved_str, current_offset):
         self.ram_history.pop(0)
         self.ram_history.append(ram_percent)
-        
         self.global_grid_offset = current_offset
         self.graph.update_graph_only(self.global_grid_offset)
         self.ram_bar.update_composition(ram_percent, pct_cache)
         self.lbl_ram_model.config(text=f"{ram_type}: {hardware_total_gb:.0f} GB")
-        
-        # Đổ dữ liệu các ô chữ cũ
         self.lbl_in_use.config(text=f"{in_use_gb:.1f} GB")
         self.lbl_available.config(text=f"{available_gb:.1f} GB")
         self.lbl_cached.config(text=f"{cache_gb:.1f} GB")
         self.lbl_committed.config(text=committed_str)
         self.lbl_paged.config(text=paged_pool)
         self.lbl_non_paged.config(text=non_paged_pool)
-        
-        # 🛠️ CẬP NHẬT SỐ HARDWARE RESERVED THỰC TẾ
         self.lbl_hw_reserved.config(text=hardware_reserved_str)
