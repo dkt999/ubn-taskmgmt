@@ -15,7 +15,7 @@ from PIL import Image, ImageDraw, ImageTk, ImageFont
 
 class CpuGraphCanvas(tk.Frame):
     def __init__(self, parent, click_callback, history_data, is_logical=False, width=200, height=120,
-                 face_color="#e6f0fa", edge_color="#0078d4", is_disk_transfer=False):
+                 face_color="#e6f0fa", edge_color="#0078d4", is_disk_transfer=False, component = "None"):
         super().__init__(parent, bg="#ffffff", cursor="hand2")
         self.click_callback = click_callback
         self.is_logical = is_logical
@@ -24,6 +24,7 @@ class CpuGraphCanvas(tk.Frame):
         self.face_color = face_color
         self.edge_color = edge_color
         self.is_disk_transfer = is_disk_transfer
+        self.component = component
         self.peak_val = 100  # Dùng cho DiskDetailView đọc nhãn peak bên phải
         self.SS = 3  # Hệ số supersample để vẽ mượt (antialias) qua PIL rồi downscale
 
@@ -81,7 +82,6 @@ class CpuGraphCanvas(tk.Frame):
         SS = self.SS
         img = Image.new("RGB", (w * SS, h * SS), "#ffffff")
         draw = ImageDraw.Draw(img)
-
         # --- Xác định giới hạn trục Y giống setup_axes() trước đây ---
         if self.is_disk_transfer:
             all_vals = self._flatten_history()
@@ -89,7 +89,16 @@ class CpuGraphCanvas(tk.Frame):
             nice_max = self.get_nice_scale(raw_max)
             self.peak_val = nice_max
             y_min, y_max = 0.0, nice_max
+        elif self.component == "Network":
+            # 🛠️ Minigraph Network (sidebar) dùng giá trị Kbps thô (không phải %), nên auto-scale
+            # giống disk transfer thay vì cố định 100 — tránh bị kẹp trần khi tốc độ > 100 Kbps.
+            all_vals = self._flatten_history()
+            raw_max = max(all_vals + [0.1])
+            nice_max = self.get_nice_scale(raw_max)
+            self.peak_val = nice_max
+            y_min, y_max = 0.0, nice_max
         else:
+            # CPU/RAM/Disk active%/GPU: luôn là % cố định 0-100, không cần auto-scale
             y_min, y_max = 0.0, 100.0
 
         pad = SS  # lề 1px (đã nhân SS) để viền không bị cắt
@@ -145,17 +154,25 @@ class CpuGraphCanvas(tk.Frame):
             if raw_max > 0:
                 y_px = y_to_px(raw_max)
                 draw.line([(pad, y_px), (pad + plot_w, y_px)], fill=self.edge_color, width=line_w)
-
-                if raw_max >= 1000.0:
-                    text_val = f"{raw_max/1024:.1f} GB/s" if raw_max % 1024 != 0 else f"{int(raw_max/1024)} GB/s"
-                elif raw_max >= 1.0:
-                    text_val = f"{raw_max:.1f} MB/s"
+                text_val = ""
+                if self.component == "None":
+                    if raw_max >= 1000.0:
+                        text_val = f"{raw_max/1024:.1f} GB/s" if raw_max % 1024 != 0 else f"{int(raw_max/1024)} GB/s"
+                    elif raw_max >= 1.0:
+                        text_val = f"{raw_max:.1f} MB/s"
+                    else:
+                        text_val = f"{int(raw_max * 1024)} KB/s"
                 else:
-                    text_val = f"{int(raw_max * 1024)} KB/s"
-
+                    net_kbps = raw_max * 8
+                    if net_kbps >= 1000000: # Lớn hơn hoặc bằng 1 Gbps
+                        text_val = f"{net_kbps / 1000000:.1f} Gbps"
+                    elif net_kbps >= 1000:  # Lớn hơn hoặc bằng 1 Mbps
+                        text_val = f"{net_kbps / 1000:.1f} Mbps"
+                    else:
+                        text_val = f"{int(net_kbps)} Kbps"
+                        if net_kbps == 0: text_val = "0 Kbps"
                 near_top = (y_max - raw_max) / y_max < 0.2 if y_max else False
-                text_y = y_px + 20 * SS if near_top else y_px - 20 * SS
-                # anchor "ra" = right, ascender — căn phải sát viền phải
+                text_y = y_px + 5 * SS if near_top else y_px - 20 * SS
                 try:
                     draw.text((pad + plot_w - 2 * SS, text_y), text_val, fill="#555555",
                             font=self._font, anchor="ra")

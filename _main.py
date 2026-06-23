@@ -1,329 +1,213 @@
 import tkinter as tk
 from tkinter import ttk
 import psutil
+import matplotlib
+import matplotlib.font_manager as fm
+matplotlib.font_manager = fm  
+fm._load_fontmanager(try_read_cache=False)
 import collections
 import random
 import time
-import os
-import subprocess
-from PIL import Image, ImageTk
 
-# Import đầy đủ các phân hệ view chi tiết hoàn chỉnh từ thư mục dự án
-from CpuDetailView import CpuDetailView, CpuGraphCanvas
+# Import 3 phân hệ view chi tiết hoàn chỉnh
+from CpuDetailView import CpuDetailView
 from RamDetailView import RamDetailView
 from DiskDetailView import DiskDetailView 
 
-# ==============================================================================
-#  SIDEBAR ITEM HOÀN CHỈNH: KHÔI PHỤC MINI GRAPH + HIỆU ỨNG HOVER/ACTIVE
-# ==============================================================================
 class SidebarItem(tk.Frame):
     def __init__(self, parent, icon_text, title_text, value_text, h, w, click_callback=None, disk_id=None):
         super().__init__(parent, bg="#ffffff", cursor="hand2")
         self.icon_text = icon_text
-        self.title_text = title_text      
-        self.disk_id = disk_id            
+        self.title_text = title_text      # Tên hiển thị trên giao diện (Ví dụ: Disk 0)
+        self.disk_id = disk_id            # Định danh đĩa vật lý ngầm hệ thống (Ví dụ: sda, nvme0n1)
         self.value_text = value_text
         self.graph_h = h
         self.graph_w = w
         self.click_callback = click_callback 
         
-        self.is_active = False            
-        self.data_history = [0] * 40      
-        
-        # 🎨 1. TÍNH TOÁN BỘ MÀU CHUẨN CHO TỪNG LINH KIỆN NGAY KHI KHỞI TẠO
-        if "CPU" in self.title_text:
-            self.graph_color_outline = "#0078d4" # Xanh dương (Windows)
-            self.graph_color_domain = "#e6f0fa"
-        elif "RAM" in self.title_text:
-            self.graph_color_outline = "#73527E" # Tím bóng bẩy
-            self.graph_color_domain = "#FFE9FF"
-        elif "Disk" in self.title_text:
-            self.graph_color_outline = "#7A9A60" # Xanh lá cây đĩa
-            self.graph_color_domain = "#F4F8F1"
-        elif "GPU" in self.title_text:
-            self.graph_color_outline = "#C4996E" # Vàng hổ phách
-            self.graph_color_domain = "#F4E9DD"
-        elif "Wi-Fi" in self.title_text or "Ethernet" in self.title_text or "VPN" in self.title_text:
-            self.graph_color_outline = "#272727" # Xám đen Network mộc mạc
-            self.graph_color_domain = "#F0EFEE"
-        else:
-            self.graph_color_outline = "#7A9A60"
-            self.graph_color_domain = "#F4F8F1"
-            
+        self.data_history = [0] * 40
         self.setup_ui()
         
     def setup_ui(self):
-        self.container = tk.Frame(self, bg="#ffffff")
-        self.container.pack(fill="x", padx=5, pady=1)
-        self.icon_mode_separator = tk.Frame(self, bg="#d9d9d9", height=1)
-        self.left_container = tk.Frame(self.container, bg="#ffffff", width=self.graph_w + 10, height=self.graph_h + 6)
+        self.left_container = tk.Frame(self, bg="#ffffff", width=self.graph_w+10, height=self.graph_h+5)
         self.left_container.pack(side="left", padx=5, fill="y")
         self.left_container.pack_propagate(False)
-        is_network_item = "Wi-Fi" in self.title_text or "Ethernet" in self.title_text or "VPN" in self.title_text
-        mini_component = "Network" if is_network_item else "None"
-        self.mini_graph = CpuGraphCanvas(
-            self.left_container, 
-            click_callback=lambda: self.on_click(None), 
-            history_data=self.data_history, 
-            is_logical=False, 
-            width=self.graph_w, 
-            height=self.graph_h,
-            face_color=self.graph_color_domain,  
-            edge_color=self.graph_color_outline,
-            component=mini_component,
-        )
-        self.mini_graph.pack(fill="both", expand=True, padx=2, pady=2)
-        self.icon_canvas = tk.Canvas(self.left_container, bg="#ffffff", highlightthickness=0, width=self.graph_w, height=self.graph_h)
-        self._draw_generic_icon()
-        self.right_container = tk.Frame(self.container, bg="#ffffff")
-        self.right_container.pack(side="left", fill="both", expand=True, padx=5)
-        self.lbl_title = tk.Label(self.right_container, text=self.title_text, font=("Calibri Bold", 11), bg="#ffffff", fg="#000000", anchor="w")
-        self.lbl_title.pack(fill="x", pady=(2, 0))
-        self.lbl_value = tk.Label(self.right_container, text=self.value_text, font=("Calibri", 9), bg="#ffffff", fg="#555555", anchor="w")
-        self.lbl_value.pack(fill="x")
-        for widget in (self, self.container, self.left_container, self.right_container,
-                       self.lbl_title, self.lbl_value, self.icon_canvas):
-            widget.bind("<Enter>", self.on_hover)
-            widget.bind("<Leave>", self.on_leave)
-            widget.bind("<Button-1>", self.on_click)
-    
-
-    def on_hover(self, event):
-        if not self.is_active:
-            self.set_all_bg("#f2f2f2") 
-
-    def on_leave(self, event):
-        if not self.is_active:
-            self.set_all_bg("#ffffff") 
-
-    def on_click(self, event):
-        if self.click_callback:
-            self.click_callback(self)
-
-    def set_active(self, active=True):
-        """Hàm đặt trạng thái kích hoạt đổi sang màu xanh nhạt xịn mịn chuẩn Windows"""
-        self.is_active = active
-        if active:
-            self.set_all_bg("#e5f1fb")         
-            self.lbl_title.config(fg="#0078d4") 
+        
+        self.lbl_icon = tk.Label(self.left_container, text=self.icon_text, bg="#ffffff", fg="#363636", font=("Calibri", 14))
+        self.lbl_icon.pack(expand=True)
+        
+        # Đồng bộ màu sắc đồ thị mini bên Sidebar theo chuẩn linh kiện Task Manager
+        if "CPU" in self.title_text:
+            self.graph_color_outline = "#0078d4"
+            self.graph_color_domain = "#e6f0fa"
+            self.graph_color_line = "#0078d4"
+        elif "RAM" in self.title_text:
+            self.graph_color_outline = "#73527E"
+            self.graph_color_domain = "#FFE9FF"
+            self.graph_color_line = "#73527E"
+        elif "Disk" in self.title_text:
+            self.graph_color_outline = "#7A9A60"
+            self.graph_color_domain = "#F4F8F1"
+            self.graph_color_line = "#7A9A60"
+        elif "GPU" in self.title_text:
+            self.graph_color_outline = "#C4996E"
+            self.graph_color_domain = "#F4E9DD"
+            self.graph_color_line = "#C4996E"
+        elif "Ethernet" in self.title_text or "VPN" in self.title_text:
+            self.graph_color_outline = "#272727"
+            self.graph_color_domain = "#F0EFEE"
+            self.graph_color_line = "#272727"
         else:
-            self.set_all_bg("#ffffff")
-            self.lbl_title.config(fg="#000000")
+            self.graph_color_outline = "#7A9A60"
+            self.graph_color_domain = "#F4F8F1"
+            self.graph_color_line = "#7A9A60"
+            
+        self.canvas = tk.Canvas(self.left_container, bg="#ffffff", highlightthickness=1, highlightbackground=self.graph_color_outline, width=self.graph_w, height=self.graph_h)
+        
+        self.text_container = tk.Frame(self, bg="#ffffff")
+        self.lbl_title = tk.Label(self.text_container, text=self.title_text, bg="#ffffff", fg="#000000", font=("Calibri Light", 12), anchor="w")
+        self.lbl_title.pack(fill="x")
+        
+        self.lbl_value = tk.Label(self.text_container, text=self.value_text, bg="#ffffff", fg="#555555", font=("Calibri", 9), anchor="w")
+        self.lbl_value.pack(fill="x")
+        
+        # Gán sự kiện đổi màu Hover
+        self.bind("<Enter>", lambda e: self.set_hover_color("#f3f3f3"))
+        self.bind("<Leave>", lambda e: self.set_hover_color("#ffffff"))
+        
+        if self.click_callback:
+            self.bind("<Button-1>", lambda e: self.click_callback(self))
+            self.left_container.bind("<Button-1>", lambda e: self.click_callback(self))
+            self.text_container.bind("<Button-1>", lambda e: self.click_callback(self))
+            self.lbl_icon.bind("<Button-1>", lambda e: self.click_callback(self))
+            self.canvas.bind("<Button-1>", lambda e: self.click_callback(self))
+            self.lbl_title.bind("<Button-1>", lambda e: self.click_callback(self))
+            self.lbl_value.bind("<Button-1>", lambda e: self.click_callback(self))
 
-    def set_all_bg(self, color):
-        """Nhuộm màu nền đồng bộ nhưng chặn không cho cấu hình lại geometry ẩn"""
+        self.draw_mini_graph()
+
+    def set_hover_color(self, color):
         self.config(bg=color)
-        self.container.config(bg=color)
         self.left_container.config(bg=color)
-        self.right_container.config(bg=color)
+        self.text_container.config(bg=color)
+        self.lbl_icon.config(bg=color)
         self.lbl_title.config(bg=color)
         self.lbl_value.config(bg=color)
-        if hasattr(self, 'mini_graph'):
-            self.mini_graph.config(bg=color)
-        if hasattr(self, 'icon_canvas'):
-            self.icon_canvas.config(bg=color)
 
-    # 🛠️ Thư mục chứa icon PNG — tính theo vị trí thật của main.py (không phải cwd lúc chạy app),
-    # để dù chạy app từ đâu vẫn luôn tìm đúng thư mục icons/ nằm cùng cấp với main.py.
-    ICON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
-    ICON_FILES = {
-        "CPU": "cpu.png",
-        "RAM": "ram.png",
-        "Disk": "disk.png",
-        "GPU": "gpu.png",
-        "Network": "network.png",
-    }
-
-    def _resolve_icon_key(self):
-        if "CPU" in self.title_text: return "CPU"
-        if "RAM" in self.title_text: return "RAM"
-        if "Disk" in self.title_text: return "Disk"
-        if "GPU" in self.title_text: return "GPU"
-        if "Wi-Fi" in self.title_text or "Ethernet" in self.title_text or "VPN" in self.title_text: return "Network"
-        return None
-
-    def _draw_generic_icon(self):
-        """Nạp icon PNG thật theo từng hạng mục (cpu.png/ram.png/disk.png/gpu.png/network.png
-        trong thư mục ICON_DIR). Nếu không tìm thấy file, fallback vẽ placeholder generic bằng
-        Canvas thuần (khung vuông + đường zigzag) để app không bị vỡ giao diện."""
-        c = self.icon_canvas
-        c.delete("all")
-        w, h = self.graph_w, self.graph_h
-        h = 80
-        icon_key = self._resolve_icon_key()
-        filename = self.ICON_FILES.get(icon_key)
-        icon_path = os.path.join(self.ICON_DIR, filename) if filename else None
-
-        if icon_path and os.path.exists(icon_path):
-            try:
-                img = Image.open(icon_path).convert("RGBA")
-                # Co ảnh vừa khung, chừa lề 6px, giữ tỉ lệ gốc, lọc LANCZOS cho mượt
-                img.thumbnail((max(1, 50), max(1, 50)), Image.LANCZOS)
-                self._icon_photo = ImageTk.PhotoImage(img)  # giữ reference tránh bị GC
-                c.create_image(20, 20, image=self._icon_photo)
-                return
-            except Exception as e:
-                print(f"⚠️ Không load được icon '{icon_path}': {e}")  # In ra để fen dễ debug
-                pass  # Lỗi đọc file (hỏng/định dạng sai) -> rơi xuống fallback bên dưới
-
-        # --- Fallback: placeholder generic khi chưa có file PNG tương ứng ---
-        pad = max(4, min(w, h) // 6)
-        c.create_rectangle(pad, pad, w - pad, h - pad, outline=self.graph_color_outline, width=2)
-        mid_y = h / 2
-        points = [
-            (pad + 3, mid_y + 6), (pad + (w - 2*pad) * 0.3, mid_y - 8),
-            (pad + (w - 2*pad) * 0.55, mid_y + 4), (pad + (w - 2*pad) * 0.8, mid_y - 10),
-            (w - pad - 3, mid_y - 2),
-        ]
-        c.create_line(points, fill=self.graph_color_outline, width=2, smooth=True)
-
-    def set_compact_icon_mode(self, icon_only):
-        """Chuyển đổi giữa mini_graph (đồ thị thật) và icon_canvas (placeholder) khi cửa sổ hẹp.
-        Đồng thời hiện/ẩn viền ngăn cách 1px xám giữa các item — chỉ hiện ở chế độ icon."""
-        if icon_only:
-            self.mini_graph.pack_forget()
-            self.icon_canvas.pack(fill="both", expand=True, padx=2, pady=0)
-            self.icon_mode_separator.pack(fill="x", side="bottom", pady=(0, 0))
-        else:
-            self.icon_canvas.pack_forget()
-            self.mini_graph.pack(fill="both", expand=True, padx=2, pady=2)
-            self.icon_mode_separator.pack_forget()
-
-    def switch_mode(self, collapsed=False):
-        if collapsed:
-            self.right_container.pack_forget()
-        else:
-            self.right_container.pack(side="left", fill="both", expand=True, padx=5)
-
-    def update_real_data(self, usage_val, text_val):
-        """Đồng bộ nạp số liệu cuộn và giữ màu viền đặc chủng khi render"""
-        self.lbl_value.config(text=text_val)
+    def update_real_data(self, new_val, display_text):
         self.data_history.pop(0)
-        self.data_history.append(usage_val)
+        self.data_history.append(new_val)
+        self.lbl_value.config(text=display_text)
+        self.draw_mini_graph()
+
+    def draw_mini_graph(self):
+        self.canvas.delete("all")
+        points = []
+        w, h = self.graph_w, self.graph_h
+        padding_top = 2
+        padding_bottom = 2
+        usable_h = h - padding_top - padding_bottom
+        step = w / (len(self.data_history) - 1)
         
-        if hasattr(self, 'mini_graph'):
-            # Đảm bảo các thuộc tính màu sắc trong instance đồ thị không bị ghi đè mất gốc
-            self.mini_graph.face_color = self.graph_color_domain
-            self.mini_graph.edge_color = self.graph_color_outline
-            self.mini_graph.update_graph_only(self.mini_graph.grid_offset)
+        for i, val in enumerate(self.data_history):
+            x = i * step
+            bounded_val = min(max(val, 0), 100)
+            y = padding_top + (usable_h - (bounded_val / 100 * usable_h))
+            points.append((x, y))  
+            
+        if len(points) > 1:
+            polygon_points = [(0, h)] + points + [(w, h)]
+            self.canvas.create_polygon(polygon_points, fill=self.graph_color_domain, outline="")
+            self.canvas.create_line(points, fill=self.graph_color_line, width=1.0)
+
+    def switch_mode(self, collapsed):
+        if collapsed:
+            self.text_container.pack_forget()
+            self.canvas.pack_forget()
+            self.lbl_icon.pack(expand=True)
+            self.left_container.config(width=30)
+        else:
+            self.lbl_icon.pack_forget()
+            self.left_container.config(width=self.graph_w)
+            self.canvas.pack(pady=5, padx=2, expand=True)
+            self.text_container.pack(side="left", fill="both", expand=True, padx=5)
 
 
-# ==============================================================================
-#  MAIN WINDOW: QUẢN LÝ TAB, PHẦN CỨNG VÀ TRUYỀN THAM SỐ CHUẨN XỊN
-# ==============================================================================
 class MainWindow(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Task Manager Pro")
-        self.geometry("1100x700")
-        self.configure(bg="#ffffff")
-        
-        self.is_collapsed = False
-        self.is_icon_mode = False
-        self.items = [] 
-        
+        self.title("Custom Task Manager Pro")
+        self.geometry("1020x650")
+        self.minsize(500, 400)
         self.current_offset = 0
-        self.last_sync_time = time.time()
-        
-        # ----------------------------------------------------------------------
-        #  1. THANH TAB ĐỈNH HỆ THỐNG
-        # ----------------------------------------------------------------------
-        self.top_tab_bar = tk.Frame(self, bg="#f3f3f3", height=40, bd=1, relief="groove")
-        self.top_tab_bar.pack(side="top", fill="x")
-        self.top_tab_bar.pack_propagate(False)
-        
-        self.btn_tab_proc = tk.Button(self.top_tab_bar, text="Processes", font=("Calibri Bold", 11),
-                                      bg="#f3f3f3", fg="#000000", bd=0, activebackground="#ffffff",
-                                      padx=20, cursor="hand2", command=self.switch_to_processes_tab)
-        self.btn_tab_proc.pack(side="left", fill="y")
-        
-        self.btn_tab_res = tk.Button(self.top_tab_bar, text="Performance", font=("Calibri Bold", 11),
-                                     bg="#ffffff", fg="#0078d4", bd=0, activebackground="#ffffff",
-                                     padx=20, cursor="hand2", command=self.switch_to_resource_tab)
-        self.btn_tab_res.pack(side="left", fill="y")
-        
-        # ----------------------------------------------------------------------
-        #  2. KHUNG PROCESSES TAB (TẠM ẨN)
-        # ----------------------------------------------------------------------
-        self.processes_layout_frame = tk.Frame(self, bg="#ffffff")
-        lbl_proc_placeholder = tk.Label(self.processes_layout_frame, 
-                                        text="📑 Bảng danh sách tiến trình (Processes) đang được chuẩn bị đưa qua QC...", 
-                                        font=("Calibri", 14), bg="#ffffff", fg="#555555")
-        lbl_proc_placeholder.pack(expand=True)
-        
-        # ----------------------------------------------------------------------
-        #  3. KHUNG PERFORMANCE/RESOURCE TAB (CHỨA SIDEBAR + ĐỒ THỊ)
-        # ----------------------------------------------------------------------
-        self.resource_layout_frame = tk.Frame(self, bg="#ffffff")
-        self.resource_layout_frame.pack(side="bottom", fill="both", expand=True) 
-        
-        self.sidebar_frame = tk.Frame(self.resource_layout_frame, bg="#ffffff", width=250, bd=0)
-        self.sidebar_frame.pack(side="left", fill="y")
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=0)
+        self.grid_columnconfigure(2, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        self.sidebar_frame = tk.Frame(self, bg="#ffffff")
+        self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
+        self.sidebar_frame.config(width=250)
         self.sidebar_frame.pack_propagate(False)
-
-        # 🛠️ Border-right 2px cho sidebar — dùng 1 Frame mỏng riêng (Tkinter Frame không hỗ trợ
-        # border từng cạnh như CSS, nên tách hẳn 1 thanh màu xám đặt sát bên phải sidebar_frame).
-        self.sidebar_border = tk.Frame(self.resource_layout_frame, bg="#d9d9d9", width=1)
-        self.sidebar_border.pack(side="left", fill="y")
-        
+        self.sidebar_frame.grid_propagate(False)
         self.menu_items_container = tk.Frame(self.sidebar_frame, bg="#ffffff")
-        self.menu_items_container.pack(fill="both", expand=True)
-        
-        self.main_frame = tk.Frame(self.resource_layout_frame, bg="#ffffff")
-        self.main_frame.pack(side="right", fill="both", expand=True, padx=10, pady=10)
-        
-        # Khởi tạo CPU và RAM tĩnh lề trái
-        self.item_cpu = SidebarItem(self.menu_items_container, "📊", "CPU", "0%", 40, 60, click_callback=self.handle_view_change)
+        self.menu_items_container.pack(fill="both", expand=True, padx=5)
+        #CPU Zone
+        self.items = []
+        self.item_cpu = SidebarItem(self.menu_items_container, "⚙", "CPU", "0% 0.00 GHz", 40, 60, click_callback=self.handle_view_change)
         self.item_cpu.pack(fill="x", pady=5)
         self.items.append(self.item_cpu)
-        
-        self.item_ram = SidebarItem(self.menu_items_container, "🗲", "RAM", "0%", 40, 60, click_callback=self.handle_view_change)
+        #RAM Zone
+        self.item_ram = SidebarItem(self.menu_items_container, "📊", "RAM", "0.0/0.0 GB (0%)", 40, 60, click_callback=self.handle_view_change)
         self.item_ram.pack(fill="x", pady=5)
         self.items.append(self.item_ram)
-        
-        self.item_cpu.set_active(True)
-        
-        self.cpu_view = CpuDetailView(self.main_frame)
-        self.ram_view = RamDetailView(self.main_frame)
-        self.cpu_view.pack(fill="both", expand=True)
-        
-        # ----------------------------------------------------------------------
-        #  4. KHỞI TẠO PHÂN HỆ ĐĨA (DISK)
-        # ----------------------------------------------------------------------
+        #Disk Zone
         self.disk_io_keys = []
         self.disk_views = {}
         self.disk_sidebar_items = {}
-        self.last_disk_io = psutil.disk_io_counters(perdisk=True)
-        
         try:
+            all_disks_io = psutil.disk_io_counters(perdisk=True)
             disk_idx = 0
-            for d_name in sorted(self.last_disk_io.keys()):
-                if d_name.startswith("loop") or d_name.startswith("ram"): continue
-                if "nvme" in d_name and "p" in d_name: continue
-                if d_name.startswith("sd") and d_name[-1].isdigit(): continue
-                
+            for d_name in sorted(all_disks_io.keys()):
+                if d_name.startswith("loop") or d_name.startswith("ram"):
+                    continue
+                if "nvme" in d_name and "p" in d_name:
+                    continue
+                if d_name.startswith("sd") and d_name[-1].isdigit():
+                    continue
                 self.disk_io_keys.append(d_name)
                 display_label = f"Disk {disk_idx}"
-                
                 item_disk = SidebarItem(self.menu_items_container, "💽", display_label, "0%", 40, 60, 
                                         click_callback=self.handle_view_change, disk_id=d_name)
                 item_disk.pack(fill="x", pady=5)
-                
                 self.disk_sidebar_items[d_name] = item_disk
                 self.items.append(item_disk)
-                
-                self.disk_views[d_name] = DiskDetailView(self.main_frame, d_name)
                 disk_idx += 1
         except Exception as e:
-            print(f"Lỗi khởi tạo ổ đĩa ban đầu: {e}")
-
-        # ----------------------------------------------------------------------
-        #  5. KHỞI TẠO CARD ĐỒ HỌA (GPU)
-        # ----------------------------------------------------------------------
-        self.gpu_keys = []          
-        self.gpu_views = {}         
-        self.gpu_sidebar_items = {} 
+            print(f"Lỗi quét danh sách ổ đĩa: {e}")
         
+        # ---- Cột chứa border 1px ----
+        self.right_border = tk.Frame(self, bg="#CCCCCC", width=1)
+        self.right_border.grid(row=0, column=1, sticky="nsew")
+
+        # ---- Cột bên phải (Main Content) ----
+        self.main_frame = tk.Frame(self, bg="#ffffff")
+        self.main_frame.grid(row=0, column=2, sticky="nsew")
+
+        self.cpu_view = CpuDetailView(self.main_frame)
+        self.ram_view = RamDetailView(self.main_frame)
+        
+        # Tạo view chi tiết tương ứng cho từng ổ dựa vào định danh đĩa vật lý ngầm
+        for d_name in self.disk_io_keys:
+            self.disk_views[d_name] = DiskDetailView(self.main_frame, disk_name=d_name)
+        
+        self.cpu_view.pack(fill="both", expand=True)
+
+        self.last_disk_io = psutil.disk_io_counters(perdisk=True)
+        self.last_sync_time = time.time()
+        #GPU Zone
+        self.gpu_keys = []
+        self.gpu_views = {}
+        self.gpu_sidebar_items = {}
         detected_gpus = self.detect_all_gpus_on_startup()
         gpu_idx = 0
         for gpu_info in detected_gpus:
@@ -331,29 +215,34 @@ class MainWindow(tk.Tk):
             self.gpu_keys.append(g_id)
             display_label = f"GPU {gpu_idx}"
             
+            # Tạo item trên Sidebar
+            from GpuDetailView import GpuDetailView
             item_gpu = SidebarItem(self.menu_items_container, "📟", display_label, "0%", 40, 60, 
-                                   click_callback=self.handle_view_change, disk_id=g_id)
+                                   click_callback=self.handle_view_change, disk_id=g_id) # Tái sử dụng disk_id làm id phần cứng ngầm
             item_gpu.pack(fill="x", pady=5)
             
             self.gpu_sidebar_items[g_id] = item_gpu
             self.items.append(item_gpu)
             
-            from GpuDetailView import GpuDetailView
+            # Khởi tạo trang View chi tiết 5 đồ thị cho từng GPU
             new_gpu_view = GpuDetailView(self.main_frame)
-            new_gpu_view.lbl_gpu_model.config(text=gpu_info["model"]) 
+            new_gpu_view.lbl_gpu_model.config(text=gpu_info["model"]) # Đổ tên card thật lên header
             self.gpu_views[g_id] = new_gpu_view
+            
             gpu_idx += 1
-
-        # ----------------------------------------------------------------------
-        #  6. KHỞI TẠO MẠNG (NETWORK)
-        # ----------------------------------------------------------------------
+        #NET zone
         self.net_keys = []
         self.net_views = {}
         self.net_sidebar_items = {}
+        
+        # Lấy mốc dữ liệu I/O mạng đầu tiên để làm gốc tính toán tốc độ
         self.last_net_io = psutil.net_io_counters(pernic=True)
         
+        # Quét các card mạng đang hoạt động (Bỏ loopback 'lo')
         active_nets = sorted([k for k in self.last_net_io.keys() if k != 'lo' and not k.startswith('veth')])
-        last_anchor = list(self.gpu_sidebar_items.values())[-1] if self.gpu_sidebar_items else self.item_ram
+        
+        # Tìm phần tử cuối cùng của GPU để làm mốc găm neo Sidebar (CPU > RAM > DISK > GPU > NET)
+        last_gpu_anchor = list(self.gpu_sidebar_items.values())[-1] if self.gpu_sidebar_items else self.item_ram
         
         for n_name in active_nets:
             self.net_keys.append(n_name)
@@ -362,51 +251,36 @@ class MainWindow(tk.Tk):
                 display_label = "Wi-Fi"
             elif "ppp" in n_name or "tailscale" in n_name:
                 display_label = "VPN"
+
             display_label = display_label + " (" + n_name + ")"
+            from NetDetailView import NetDetailView
             item_net = SidebarItem(self.menu_items_container, "🌐", display_label, "0 Kbps", 40, 60, 
                                    click_callback=self.handle_view_change, disk_id=n_name)
-            item_net.pack(fill="x", pady=5, after=last_anchor)
-            last_anchor = item_net
+            item_net.pack(fill="x", pady=5, after=last_gpu_anchor)
+            last_gpu_anchor = item_net
             
             self.net_sidebar_items[n_name] = item_net
             self.items.append(item_net)
             
-            from NetDetailView import NetDetailView
+            # Tạo view chi tiết
             self.net_views[n_name] = NetDetailView(self.main_frame, net_name=n_name)
-
-        self.global_sync_loop()
-        self.bind("<Configure>", self.on_resize)
-
-    def switch_to_processes_tab(self):
-        self.btn_tab_proc.config(bg="#ffffff", fg="#0078d4")
-        self.btn_tab_res.config(bg="#f3f3f3", fg="#000000")
-        self.resource_layout_frame.pack_forget()
-        self.processes_layout_frame.pack(fill="both", expand=True)
-
-    def switch_to_resource_tab(self):
-        self.btn_tab_res.config(bg="#ffffff", fg="#0078d4")
-        self.btn_tab_proc.config(bg="#f3f3f3", fg="#000000")
-        self.processes_layout_frame.pack_forget()
-        self.resource_layout_frame.pack(fill="both", expand=True)
-
-    # ----------------------------------------------------------------------
-    #  ĐIỀU HƯỚNG CLICK SIDEBAR ĐỒNG BỘ ĐẦY ĐỦ THAM SỐ AN TOÀN
-    # ----------------------------------------------------------------------
-    def handle_view_change(self, clicked_item):
+        self.is_collapsed = False
         for item in self.items:
-            item.set_active(False)
-        clicked_item.set_active(True)
+            item.switch_mode(collapsed=False)
+            
+        self.bind("<Configure>", self.on_resize)
         
+        self.global_sync_loop()
+    def handle_view_change(self, clicked_item):
         self.cpu_view.pack_forget()
         self.ram_view.pack_forget()
         for dv in self.disk_views.values(): dv.pack_forget()
         for gv in self.gpu_views.values(): gv.pack_forget()
         for nv in self.net_views.values(): nv.pack_forget()
-            
         target_title = clicked_item.title_text
         if target_title == "CPU":
             self.cpu_view.pack(fill="both", expand=True)
-        elif "RAM" in target_title:
+        elif target_title == "RAM":
             self.ram_view.pack(fill="both", expand=True)
         else:
             hw_id = clicked_item.disk_id
@@ -416,10 +290,6 @@ class MainWindow(tk.Tk):
                 self.gpu_views[hw_id].pack(fill="both", expand=True)
             elif hw_id in self.net_views:
                 self.net_views[hw_id].pack(fill="both", expand=True)
-
-    # ----------------------------------------------------------------------
-    #  LUỒNG ĐỒNG BỘ CHU KỲ NỀN 1S (TỐI ƯU THAM SỐ)
-    # ----------------------------------------------------------------------
     def global_sync_loop(self):
         self.current_offset = (self.current_offset + 1) % 10
         now_time = time.time()
@@ -534,7 +404,6 @@ class MainWindow(tk.Tk):
                         
                         # Đồng bộ trạng thái co giãn của Sidebar
                         item_disk.switch_mode(collapsed=self.is_collapsed)
-                        item_disk.set_compact_icon_mode(self.is_icon_mode)
 
                 # CẬP NHẬT LẠI BIẾN QUẢN LÝ ĐĨA HỆ THỐNG
                 self.disk_io_keys = active_disks
@@ -718,18 +587,12 @@ class MainWindow(tk.Tk):
                         from NetDetailView import NetDetailView
                         self.net_views[n_name] = NetDetailView(self.main_frame, net_name=n_name)
                         
-                        display_label = "Ethernet"
-                        if "wlan" in n_name or "wlp" in n_name:
-                            display_label = "Wi-Fi"
-                        elif "ppp" in n_name or "tailscale" in n_name:
-                            display_label = "VPN"
-                        display_label = display_label + " (" + n_name + ")"
+                        display_label = "Wi-Fi" if "wlan" in n_name or "wlp" in n_name else "Ethernet"
                         item_net = SidebarItem(self.menu_items_container, "🌐", display_label, "0 Kbps", 40, 60, 
                                                click_callback=self.handle_view_change, disk_id=n_name)
                         self.net_sidebar_items[n_name] = item_net
                         self.items.append(item_net)
                         item_net.switch_mode(collapsed=self.is_collapsed)
-                        item_net.set_compact_icon_mode(self.is_icon_mode)
 
                 self.net_keys = live_nets
                 
@@ -766,72 +629,217 @@ class MainWindow(tk.Tk):
             print(f"Lỗi đồng bộ phân hệ Network: {e}")
         self.last_sync_time = now_time
         self.after(1000, self.global_sync_loop)
+    def reload_disk_sections(self):
+        """Hàm tự động xóa các widget ổ đĩa cũ và dựng lại khi có sự kiện Tháo/Lắp"""
+        print("🔄 Phát hiện thay đổi phần cứng: Đang reload lại danh sách ổ đĩa...")
+        
+        # 🛠️ LOGIC KIỂM TRA XEM TRANG ĐĨA NÀO ĐANG ĐƯỢC HIỂN THỊ TRƯỚC KHI HỦY
+        active_disk_before_reload = None
+        for d_name, view in self.disk_views.items():
+            # info_manager() trả về rỗng nếu widget đang bị pack_forget (không hiển thị)
+            if view.winfo_manager(): 
+                active_disk_before_reload = d_name
+                break
+        
+        # Kiểm tra xem CPU hoặc RAM có đang hiển thị không
+        cpu_active = bool(self.cpu_view.winfo_manager())
+        ram_active = bool(self.ram_view.winfo_manager())
+        
+        # 1. Xóa các view chi tiết của đĩa cũ khỏi container hiển thị chính
+        for d_name, view in list(self.disk_views.items()):
+            try:
+                view.destroy()
+            except: pass
+        self.disk_views.clear()
+        
+        # 2. Xóa các item đĩa cũ trên thanh Sidebar
+        for d_name, item in list(self.disk_sidebar_items.items()):
+            if item in self.items:
+                self.items.remove(item)
+            try:
+                item.destroy()
+            except: pass
+        self.disk_sidebar_items.clear()
+        
+        sidebar_container = self.menu_items_container
+        right_container = self.main_frame
 
+        # 4. Quét lại và dựng giao diện với danh sách ổ đĩa mới
+        try:
+            disk_idx = 0
+            for d_name in sorted(self.disk_io_keys):
+                display_label = f"Disk {disk_idx}"
+                
+                # Tạo lại mục trên Sidebar
+                item_disk = SidebarItem(sidebar_container, "💽", display_label, "0%", 40, 60, 
+                                        click_callback=self.handle_view_change, disk_id=d_name)
+                item_disk.pack(fill="x", pady=5)
+                
+                self.disk_sidebar_items[d_name] = item_disk
+                self.items.append(item_disk)
+                
+                # Tạo lại trang chi tiết đĩa găm thẳng vào vùng bên phải (self.main_frame)
+                from DiskDetailView import DiskDetailView
+                new_view = DiskDetailView(right_container, disk_name=d_name)
+                self.disk_views[d_name] = new_view
+                
+                disk_idx += 1
+                
+            # Cập nhật trạng thái co giãn (Collapse) đồng bộ cho các item mới tạo
+            for item in self.items:
+                item.switch_mode(collapsed=self.is_collapsed)
+                
+            sidebar_container.update()
+            print("✅ Reload danh sách ổ đĩa thành công!")
+            
+            # ----------------------------------------------------------------------
+            # 🛠️ LOGIC ĐIỀU HƯỚNG THÔNG MINH CHỐNG TRẮNG GIAO DIỆN
+            # ----------------------------------------------------------------------
+            if cpu_active:
+                # Nếu trước đó đang xem CPU thì giữ nguyên view CPU
+                self.cpu_view.pack(fill="both", expand=True)
+            elif ram_active:
+                # Nếu trước đó đang xem RAM thì giữ nguyên view RAM
+                self.ram_view.pack(fill="both", expand=True)
+            elif active_disk_before_reload and active_disk_before_reload in self.disk_views:
+                # Nếu đĩa đang xem vẫn còn tồn tại (ví dụ cắm thêm USB mới nên reload) -> Giữ nguyên view đĩa đó
+                self.disk_views[active_disk_before_reload].pack(fill="both", expand=True)
+            else:
+                # Trường hợp chí mạng: Ổ đĩa đang xem vừa bị RÚT RA -> Tự động nhảy về trang CPU mặc định
+                print("🔌 Ổ đĩa đang xem đã bị ngắt kết nối. Tự động chuyển hướng về trang CPU.")
+                self.cpu_view.pack(fill="both", expand=True)
+                
+        except Exception as e:
+            print(f"Lỗi khi dựng lại giao diện ổ đĩa: {e}")
+            # Fallback an toàn tuyệt đối nếu có bất kỳ lỗi nào xảy ra trong quá trình render
+            self.cpu_view.pack(fill="both", expand=True)
     def detect_all_gpus_on_startup(self):
         gpus = []
         try:
-            output = subprocess.check_output(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"], stderr=subprocess.DEVNULL).decode("utf-8").strip()
+            import subprocess
+            cmd = ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"]
+            output = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("utf-8").strip()
             if output:
-                for idx, name in enumerate(output.split('\n')): gpus.append({"id": f"NVIDIA_{idx}", "brand": "NVIDIA", "model": name.strip()})
+                lines = output.split('\n')
+                for idx, name in enumerate(lines):
+                    gpus.append({
+                        "id": f"NVIDIA_{idx}",
+                        "brand": "NVIDIA",
+                        "model": name.strip(),
+                        "index": idx
+                    })
         except: pass
         try:
-            if os.path.exists("/sys/class/drm"):
-                for card in sorted([d for d in os.listdir("/sys/class/drm") if d.startswith("card") and not "-" in d]):
-                    if os.path.exists(f"/sys/class/drm/{card}/device/gpu_busy_percent"):
-                        gpus.append({"id": f"AMD_{card}", "brand": "AMD", "model": f"AMD Radeon Graphics ({card.upper()})"})
+            import os
+            drm_path = "/sys/class/drm"
+            if os.path.exists(drm_path):
+                cards = [d for d in os.listdir(drm_path) if d.startswith("card") and not "-" in d]
+                for card in sorted(cards):
+                    amd_device_path = f"{drm_path}/{card}/device"
+                    if os.path.exists(f"{amd_device_path}/gpu_busy_percent"):
+                        gpus.append({
+                            "id": f"AMD_{card}",
+                            "brand": "AMD",
+                            "model": f"AMD Radeon Graphics ({card.upper()})",
+                            "sys_path": amd_device_path
+                        })
         except: pass
-        if not gpus: gpus.append({"id": "FALLBACK_GPU", "brand": "Generic", "model": "Intel HD Graphics / Generic GPU"})
+        if not gpus:
+            gpus.append({
+                "id": "FALLBACK_GPU",
+                "brand": "Generic",
+                "model": "Intel HD Graphics / Generic GPU"
+            })
         return gpus
-
     def query_live_gpu_data(self, gpu_id):
-        data = {"util_3d": 0, "util_copy": 0, "util_decode": 0, "util_proc": 0, "ded_used": 0.0, "ded_total": 0.0, "shr_used": 0.0, "shr_total": 0.0, "temp": 0, "driver": "N/A"}
-        data["shr_total"] = (psutil.virtual_memory().total / (1024**3)) * 0.5
+        """Hàm đào sâu lấy dữ liệu động thời gian thực cho từng GPU dựa vào ID - Phiên bản nâng cao cho Linux"""
+        import subprocess, os, psutil
+        
+        # Cấu trúc lưu trữ dữ liệu phân phối trực tiếp cho 4 lõi đồ thị lớn
+        data = {"util_3d": 0, "util_copy": 0, "util_decode": 0, "util_proc": 0, 
+                "ded_used": 0.0, "ded_total": 0.0, "shr_used": 0.0, "shr_total": 0.0, "temp": 0, "driver": "N/A"}
+        
+        # Mặc định Shared Memory bằng 50% tổng RAM hệ thống
+        total_sys_ram_gb = psutil.virtual_memory().total / (1024**3)
+        data["shr_total"] = total_sys_ram_gb * 0.5
         try:
             with open("/proc/meminfo", "r") as f:
                 for line in f:
-                    if "Shmem:" in line: data["shr_used"] = int(line.split()[1]) / (1024**2); break
+                    if "Shmem:" in line:
+                        data["shr_used"] = int(line.split()[1]) / (1024**2) # Đổi sang GB
+                        break
         except: data["shr_used"] = 0.05
+        
+        # 🟢 TRƯỜNG HỢP 1: TRUY VẤN CARD NVIDIA (Hỗ trợ AI & Compute chuyên sâu)
         if gpu_id.startswith("NVIDIA"):
             try:
                 idx = gpu_id.split("_")[1]
-                out = subprocess.check_output(["nvidia-smi", f"--id={idx}", "--query-gpu=utilization.gpu,utilization.memory,utilization.decoder,utilization.encoder,memory.used,memory.total,temperature.gpu,driver_version", "--format=csv,noheader,nounits"], stderr=subprocess.DEVNULL).decode("utf-8").strip()
+                # Truy vấn: Tải tổng (3D), Tải tính toán (Compute/CUDA), Tải giải mã (Decode), Tải mã hóa (Encode)
+                cmd = [
+                    "nvidia-smi", 
+                    f"--id={idx}",
+                    "--query-gpu=utilization.gpu,utilization.memory,utilization.decoder,utilization.encoder,memory.used,memory.total,temperature.gpu,driver_version", 
+                    "--format=csv,noheader,nounits"
+                ]
+                out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("utf-8").strip()
                 if out:
                     parts = [p.strip() for p in out.split(",")]
-                    data["util_3d"], data["util_copy"], data["util_decode"], data["util_proc"] = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
-                    data["ded_used"], data["ded_total"], data["temp"], data["driver"] = float(parts[4])/1024, float(parts[5])/1024, int(parts[6]), parts[7]
+                    data["util_3d"] = int(parts[0])     # Nhân 3D đồ họa chính
+                    data["util_copy"] = int(parts[1])   # Bản chất lượng Compute/Memory Bus map vào ô Compute
+                    data["util_decode"] = int(parts[2]) # Nhân Video Decode (Xem phim / Giải mã)
+                    data["util_proc"] = int(parts[3])   # Nhân Video Encode (Livestream / Kết xuất)
+                    data["ded_used"] = float(parts[4]) / 1024
+                    data["ded_total"] = float(parts[5]) / 1024
+                    data["temp"] = int(parts[6])
+                    data["driver"] = parts[7]
             except: pass
+            
+        # 🟢 TRƯỜNG HỢP 2: TRUY VẤN CARD AMD RADEON
         elif gpu_id.startswith("AMD"):
             try:
                 card_name = gpu_id.split("_")[1]
                 amd_base = f"/sys/class/drm/{card_name}/device"
+                
                 if os.path.exists(amd_base):
-                    with open(f"{amd_base}/gpu_busy_percent", "r") as f: gpu_load = int(f.read().strip()); data["util_3d"] = gpu_load
-                    with open(f"{amd_base}/mem_info_vram_used", "r") as f: data["ded_used"] = int(f.read().strip()) / (1024**3)
-                    with open(f"{amd_base}/mem_info_vram_total", "r") as f: data["ded_total"] = int(f.read().strip()) / (1024**3)
-                    data["util_copy"], data["util_decode"], data["util_proc"] = gpu_load//2, gpu_load//4, gpu_load//5
+                    with open(f"{amd_base}/gpu_busy_percent", "r") as f:
+                        gpu_load = int(f.read().strip())
+                        data["util_3d"] = gpu_load
+                        
+                    with open(f"{amd_base}/mem_info_vram_used", "r") as f:
+                        data["ded_used"] = int(f.read().strip()) / (1024**3)
+                    with open(f"{amd_base}/mem_info_vram_total", "r") as f:
+                        data["ded_total"] = int(f.read().strip()) / (1024**3)
+                        
+                    # AMD không phân tách nhân decode thô qua sysfs mà cần quyền root, 
+                    # nên ta cho các nhân phụ chạy đồng bộ mượt mà theo tải hệ thống
+                    data["util_copy"] = gpu_load // 2 if gpu_load > 0 else 0
+                    data["util_decode"] = gpu_load // 4 if gpu_load > 0 else 0
+                    data["util_proc"] = gpu_load // 5 if gpu_load > 0 else 0
+                    
                     try:
-                        with open(f"{amd_base}/hwmon/hwmon0/temp1_input", "r") as f: data["temp"] = int(f.read().strip()) // 1000
+                        with open(f"{amd_base}/hwmon/hwmon0/temp1_input", "r") as f:
+                            data["temp"] = int(f.read().strip()) // 1000
                     except: pass
                     data["driver"] = "AMD DRM Open Source Driver"
             except: pass
+            
         return data
-
     def on_resize(self, event):
         if event.widget == self:
             current_width = event.width
             SizeCollapse = 840
             if current_width < SizeCollapse and not self.is_collapsed:
-                self.sidebar_frame.config(width=60)
-                for item in self.items: item.switch_mode(collapsed=True)
-                for item in self.items: item.set_compact_icon_mode(True)
+                self.sidebar_frame.config(width=40)
+                #self.lbl_menu.config(text="☰", anchor="center")
+                for item in self.items:
+                    item.switch_mode(collapsed=True)
                 self.is_collapsed = True
-                self.is_icon_mode = True
             elif current_width >= SizeCollapse and self.is_collapsed:
                 self.sidebar_frame.config(width=250)
-                for item in self.items: item.switch_mode(collapsed=False)
-                for item in self.items: item.set_compact_icon_mode(False)
+                #self.lbl_menu.config(text="☰  Hiệu năng", anchor="w")
+                for item in self.items:
+                    item.switch_mode(collapsed=False)
                 self.is_collapsed = False
-                self.is_icon_mode = False
 
 if __name__ == "__main__":
     app = MainWindow()

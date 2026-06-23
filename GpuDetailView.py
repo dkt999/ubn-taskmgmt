@@ -55,28 +55,28 @@ class GpuDetailView(tk.Frame):
         f_3d = tk.Frame(top_engines_frame, bg="#ffffff")
         f_3d.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
         tk.Label(f_3d, text="3D", font=("Calibri", 9), bg="#ffffff", fg="#555555").pack(anchor="w")
-        self.graph_3d = CpuGraphCanvas(f_3d, click_callback=lambda: None, history_data=self.history_3d, is_logical=False, face_color="#f2f2f2", edge_color="#6b6b6b")
+        self.graph_3d = CpuGraphCanvas(f_3d, click_callback=lambda: None, history_data=self.history_3d, is_logical=False, face_color="#F4E9DD", edge_color="#C4996E")
         self.graph_3d.pack(fill="both", expand=True)
         
         # Ô 2: Copy
         f_copy = tk.Frame(top_engines_frame, bg="#ffffff")
         f_copy.grid(row=0, column=1, sticky="nsew", padx=5, pady=5)
         tk.Label(f_copy, text="Compute / CUDA", font=("Calibri", 9), bg="#ffffff", fg="#555555").pack(anchor="w")
-        self.graph_copy = CpuGraphCanvas(f_copy, click_callback=lambda: None, history_data=self.history_copy, is_logical=False, face_color="#f2f2f2", edge_color="#6b6b6b")
+        self.graph_copy = CpuGraphCanvas(f_copy, click_callback=lambda: None, history_data=self.history_copy, is_logical=False, face_color="#F4E9DD", edge_color="#C4996E")
         self.graph_copy.pack(fill="both", expand=True)
         
         # Ô 3: Video Decode
         f_decode = tk.Frame(top_engines_frame, bg="#ffffff")
         f_decode.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
         tk.Label(f_decode, text="Video Decode", font=("Calibri", 9), bg="#ffffff", fg="#555555").pack(anchor="w")
-        self.graph_decode = CpuGraphCanvas(f_decode, click_callback=lambda: None, history_data=self.history_decode, is_logical=False, face_color="#f2f2f2", edge_color="#6b6b6b")
+        self.graph_decode = CpuGraphCanvas(f_decode, click_callback=lambda: None, history_data=self.history_decode, is_logical=False, face_color="#F4E9DD", edge_color="#C4996E")
         self.graph_decode.pack(fill="both", expand=True)
         
         # Ô 4: Video Processing (Đơn giản hóa thay cho Video Processing phụ)
         f_proc = tk.Frame(top_engines_frame, bg="#ffffff")
         f_proc.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
         tk.Label(f_proc, text="Video Encode", font=("Calibri", 9), bg="#ffffff", fg="#555555").pack(anchor="w")
-        self.graph_processing = CpuGraphCanvas(f_proc, click_callback=lambda: None, history_data=self.history_processing, is_logical=False, face_color="#f2f2f2", edge_color="#6b6b6b")
+        self.graph_processing = CpuGraphCanvas(f_proc, click_callback=lambda: None, history_data=self.history_processing, is_logical=False, face_color="#F4E9DD", edge_color="#C4996E")
         self.graph_processing.pack(fill="both", expand=True)
         
         # ----------------------------------------------------------------------
@@ -88,7 +88,7 @@ class GpuDetailView(tk.Frame):
         lbl_ded_title = tk.Label(f_ded_mem, text="Dedicated GPU Memory Usage", font=("Calibri", 9), bg="#ffffff", fg="#555555")
         lbl_ded_title.pack(anchor="w")
         
-        self.graph_dedicated = CpuGraphCanvas(f_ded_mem, click_callback=lambda: None, history_data=self.history_dedicated, is_logical=False, face_color="#f2f2f2", edge_color="#6b6b6b")
+        self.graph_dedicated = CpuGraphCanvas(f_ded_mem, click_callback=lambda: None, history_data=self.history_dedicated, is_logical=False, face_color="#F4E9DD", edge_color="#C4996E")
         self.graph_dedicated.pack(fill="both", expand=True)
         
         # ----------------------------------------------------------------------
@@ -100,7 +100,7 @@ class GpuDetailView(tk.Frame):
         lbl_shr_title = tk.Label(f_shr_mem, text="Shared GPU Memory Usage", font=("Calibri", 9), bg="#ffffff", fg="#555555")
         lbl_shr_title.pack(anchor="w")
         
-        self.graph_shared = CpuGraphCanvas(f_shr_mem, click_callback=lambda: None, history_data=self.history_shared, is_logical=False, face_color="#f2f2f2", edge_color="#6b6b6b")
+        self.graph_shared = CpuGraphCanvas(f_shr_mem, click_callback=lambda: None, history_data=self.history_shared, is_logical=False, face_color="#F4E9DD", edge_color="#C4996E")
         self.graph_shared.pack(fill="both", expand=True)
         
         # ----------------------------------------------------------------------
