@@ -111,8 +111,7 @@ class GpuDetailView(tk.Frame):
         
         self.stats_frame.grid_columnconfigure(0, minsize=130, weight=0, pad=20)
         self.stats_frame.grid_columnconfigure(1, minsize=130, weight=0, pad=20)
-        self.stats_frame.grid_columnconfigure(2, minsize=130, weight=0, pad=20)
-        self.stats_frame.grid_columnconfigure(3, minsize=180, weight=1)
+        self.stats_frame.grid_columnconfigure(2, minsize=130, weight=1, pad=20)
         
         # CỘT 0: GPU Utilization
         tk.Label(self.stats_frame, text="GPU Utilization", font=("", 8), bg="#ffffff", fg="#555555", anchor="w").grid(row=0, column=0, sticky="sw")
@@ -129,13 +128,13 @@ class GpuDetailView(tk.Frame):
         self.lbl_ded_val.grid(row=1, column=1, sticky="nw", pady=(0, 5))
         
         # CỘT 2: Shared GPU Memory Numbers
-        tk.Label(self.stats_frame, text="Shared GPU Memory", font=("", 8), bg="#ffffff", fg="#555555", anchor="w").grid(row=0, column=2, sticky="sw")
+        tk.Label(self.stats_frame, text="Shared GPU Memory", font=("", 8), bg="#ffffff", fg="#555555", anchor="w").grid(row=2, column=1, sticky="sw")
         self.lbl_shared_val = tk.Label(self.stats_frame, text="0.0 / 0.0 GB", font=("", 14), bg="#ffffff", anchor="w")
-        self.lbl_shared_val.grid(row=1, column=2, sticky="nw", pady=(0, 5))
+        self.lbl_shared_val.grid(row=3, column=1, sticky="nw", pady=(0, 5))
         
         # CỘT 3: Thông số tĩnh bên phải
         self.col3_sub_frame = tk.Frame(self.stats_frame, bg="#ffffff")
-        self.col3_sub_frame.grid(row=0, column=3, rowspan=4, sticky="nw", padx=(20, 0))
+        self.col3_sub_frame.grid(row=0, column=2, rowspan=4, sticky="nw", padx=(20, 0))
         
         tk.Label(self.col3_sub_frame, text="Driver version:", font=("", 9), bg="#ffffff", fg="#555555").grid(row=0, column=0, sticky="w")
         self.lbl_driver_val = tk.Label(self.col3_sub_frame, text="Loading...", font=("", 9), bg="#ffffff")

@@ -12,6 +12,7 @@ from PIL import Image, ImageTk
 from CpuDetailView import CpuDetailView, CpuGraphCanvas
 from RamDetailView import RamDetailView
 from DiskDetailView import DiskDetailView 
+from ProcessesDetail import ProcessesDetailView
 
 # ==============================================================================
 #  SIDEBAR ITEM HOÀN CHỈNH: KHÔI PHỤC MINI GRAPH + HIỆU ỨNG HOVER/ACTIVE
@@ -149,7 +150,6 @@ class SidebarItem(tk.Frame):
         c = self.icon_canvas
         c.delete("all")
         w, h = self.graph_w, self.graph_h
-        h = 80
         icon_key = self._resolve_icon_key()
         filename = self.ICON_FILES.get(icon_key)
         icon_path = os.path.join(self.ICON_DIR, filename) if filename else None
@@ -184,10 +184,14 @@ class SidebarItem(tk.Frame):
             self.mini_graph.pack_forget()
             self.icon_canvas.pack(fill="both", expand=True, padx=2, pady=0)
             self.icon_mode_separator.pack(fill="x", side="bottom", pady=(0, 0))
+            # 🛠️ Item co lại nhỏ ở chế độ icon, pady=5 (mặc định) trông quá hở -> giảm xuống 1px
+            self.pack_configure(pady=0)
         else:
             self.icon_canvas.pack_forget()
             self.mini_graph.pack(fill="both", expand=True, padx=2, pady=2)
             self.icon_mode_separator.pack_forget()
+            # Trả lại pady gốc khi hiển thị đầy đủ (đồ thị to, cần khoảng cách thoáng hơn)
+            self.pack_configure(pady=5)
 
     def switch_mode(self, collapsed=False):
         if collapsed:
@@ -246,10 +250,8 @@ class MainWindow(tk.Tk):
         #  2. KHUNG PROCESSES TAB (TẠM ẨN)
         # ----------------------------------------------------------------------
         self.processes_layout_frame = tk.Frame(self, bg="#ffffff")
-        lbl_proc_placeholder = tk.Label(self.processes_layout_frame, 
-                                        text="📑 Bảng danh sách tiến trình (Processes) đang được chuẩn bị đưa qua QC...", 
-                                        font=("Calibri", 14), bg="#ffffff", fg="#555555")
-        lbl_proc_placeholder.pack(expand=True)
+        self.processes_view = ProcessesDetailView(self.processes_layout_frame)
+        self.processes_view.pack(fill="both", expand=True)
         
         # ----------------------------------------------------------------------
         #  3. KHUNG PERFORMANCE/RESOURCE TAB (CHỨA SIDEBAR + ĐỒ THỊ)
@@ -819,7 +821,8 @@ class MainWindow(tk.Tk):
     def on_resize(self, event):
         if event.widget == self:
             current_width = event.width
-            SizeCollapse = 840
+            print(current_width)
+            SizeCollapse = 950
             if current_width < SizeCollapse and not self.is_collapsed:
                 self.sidebar_frame.config(width=60)
                 for item in self.items: item.switch_mode(collapsed=True)
